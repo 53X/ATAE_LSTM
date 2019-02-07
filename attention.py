@@ -20,10 +20,13 @@ class Attention(nn.Module):
 		if batch_first:
 			weights = F.softmax(torch.matmul(attention_candidates, self.attention_tensor), dim=1)
 		else:
-			dummy = torch.Tensor(attention_candidates.size(1), attention_candidates.size(0), attention_candidates.size(2))
+			dummy = torch.empty(attention_candidates.size(1), attention_candidates.size(0), attention_candidates.size(2))
+			
 			for i in range(attention_candidates.size(1)):
 				dummy[i] = torch.cat([attention_candidates[j, i, :] for j in range(attention_candidates.size(0))],
-					 					dim=0).view(attention_candidates.size(0), attention_candidates.size(2))
+					 				 dim=0).view(attention_candidates.size(0), attention_candidates.size(2))
+
+			weights = F.softmax(torch.matmul(dummy, self.attention_tensor), dim=1)	
 
 		
 		if weighted_sum_candidates is None:
