@@ -26,12 +26,5 @@ class Attention(nn.Module):
 		return torch.sum(weighting, dim=1)
 
 
-class ATAE_LSTM(nn.module):
-
-	'''
-	The ATAE_LSTM model
-	'''
-
-	def __init__(self, embeddings_dimension:int, )
 
 
