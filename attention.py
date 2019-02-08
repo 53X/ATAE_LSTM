@@ -10,9 +10,11 @@ class Attention(nn.Module):
 
 	def __init__(self, attention_size: int, batch_first: bool = True):
 
+		super(Attention, self).__init__()
 		self.attention_size: int = attention_size
 		self.attention_tensor: torch.Tensor = torch.empty(attention_size, 1)
 		torch.nn.init.xavier_normal_(self.attention_tensor.weight)
+
 
 	def forward(self, attention_candidates: torch.Tensor, weighted_sum_candidates: torch.Tensor = None, batch_first: bool = True) -> torch.Tensor:
 
