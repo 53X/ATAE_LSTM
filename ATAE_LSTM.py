@@ -111,6 +111,7 @@ class ATAE_LSTM(nn.Module):
 
         def forward(self, input_sentences: List[Sentence], target_words: List[List[int]], vocab: Dict()):
 
+            
             nontrainable_embeddings, __lengths__ = custom_embedding_layer(inputs = input_sentences)
             trainable_embeddings = aspect_embedding_layer(targets = Tuple(target_words, input_sentences),
                                                           vocab = vocab)(target_words)
@@ -119,7 +120,7 @@ class ATAE_LSTM(nn.Module):
             recurrent_output = self.rnn(packed_embeddings)
             padded_rnn_embedding, __ = pad_packed_sequence(recurrent_output)
             weird_tensor = weird_operation(rnn_output_tensor = padded_rnn_embedding, aspect_embedding_tensor = trainable_embeddings)
-            final_hidden_state_repr = torch.cat([recurrent_output[:,-1,:], recurrent_output[:,0, :]], dim=2)
+            final_hidden_state_repr = torch.cat([recurrent_output[:, -1, :], recurrent_output[:, 0, :]], dim=2)
             sent_repr = self.attention.forward(attention_candidates = weird_tensor)
             final_logits = affine_transformation_final(sent_repr = sent_repr, final_hidden_state = final_hidden_state_repr)
 

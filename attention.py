@@ -12,13 +12,14 @@ class Attention(nn.Module):
 
 		super(Attention, self).__init__()
 		self.attention_size: int = attention_size
-		self.attention_tensor: torch.Tensor = torch.empty(attention_size, 1)
-		torch.nn.init.xavier_normal_(self.attention_tensor.weight)
-
+		
+		
 
 	def forward(self, attention_candidates: torch.Tensor, weighted_sum_candidates: torch.Tensor = None, batch_first: bool = True) -> torch.Tensor:
 
-		
+		self.attention_tensor: torch.Tensor = torch.empty(attention_candidates.size(0), attention_size, 1) 
+		torch.nn.init.ones_(self.attention_tensor)
+
 		if batch_first:
 			weights = F.softmax(torch.matmul(attention_candidates, self.attention_tensor), dim=1)
 		else:
@@ -36,7 +37,7 @@ class Attention(nn.Module):
 		else:
 			weighting = weights * weighted_sum_candidates	
 
-		return torch.sum(weighting, dim=1)
+		return torch.sum(weighting, dim=1, keepdim=True)
 
 
 
