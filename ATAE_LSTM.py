@@ -14,7 +14,7 @@ class ATAE_LSTM(nn.Module):
     This class implements the ATAE_LSTM model
     '''
 
-    def __init__(self, num_classes: int = 2, bidirectional: bool = False, rnn_layers: int = 1,
+    def __init__(self, project_hidden: bool = False, num_classes: int = 2, bidirectional: bool = False, rnn_layers: int = 1,
                  hidden_size: int = 256, rnn_type: str = 'GRU'):
 
         super(ATAE_LSTM, self).__init__()
@@ -24,7 +24,7 @@ class ATAE_LSTM(nn.Module):
         self.wordembeddings: StackedEmbeddings = StackedEmbeddings([WordEmbeddings('glove')])
 
         
-        self.embedding_dimension: int = self.stackedembeddings.get_embedding_length() + self.wordembeddings.get_embedding_length()
+        self.embedding_dimension: int = self.stackedembeddings.get_embedding_length()+self.wordembeddings.get_embedding_length()
         self.bidirectional: bool = bidirectional
         self.rnn_layers: bool = rnn_layers
         self.rnn_type :str = rnn_type
@@ -37,7 +37,10 @@ class ATAE_LSTM(nn.Module):
         else:
             self.unprojected_hidden_size = hidden_size
 
-        self.projected_hidden_size = self.projected_hidden_size
+        if not project_hidden:
+            self.projected_hidden_size = self.hidden_size
+        else:
+            raise ValueError('This functionality will be included')    
 
         if self.rnn_type == 'GRU':
             self.rnn = torch.nn.GRU(self.embedding_dimension, self.hidden_size, bidirectional = self.bidirectional, num_layers = self.rnn_layers)
