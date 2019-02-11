@@ -26,7 +26,7 @@ class ATAE_LSTM(nn.Module):
         
         self.embedding_dimension: int = self.stackedembeddings.get_embedding_length()+self.wordembeddings.get_embedding_length()
         self.bidirectional: bool = bidirectional
-        self.rnn_layers: bool = rnn_layers
+        self.rnn_layers: int = rnn_layers
         self.rnn_type :str = rnn_type
         self.vocab_size: int = vocab_size
         self.num_classes: int = num_classes
@@ -51,13 +51,8 @@ class ATAE_LSTM(nn.Module):
         self. attention = Attention()
         self.aspect_projecting_layer = nn.Linear(self.aspect_size, self.new_aspect_size)
 
-        self.stackedembeddings: StackedEmbeddings = StackedEmbeddings([FlairEmbeddings('news-forward'), 
-                                                                       FlairEmbeddings('news-backward')])
-        self.wordembeddings: StackedEmbeddings = StackedEmbeddings([WordEmbeddings('glove')])
-
-
-
-        def weird_operation(self, rnn_output_tensor: torch.Tensor, aspect_embedding_tensor: torch.Tensor) -> torch.Tensor:
+ 
+    def weird_operation(self, rnn_output_tensor: torch.Tensor, aspect_embedding_tensor: torch.Tensor) -> torch.Tensor:
 
             transformed_rnn_output = self.project_hidden_state(rnn_output_tensor.size(-1), rnn_output_tensor.size(-1))(rnn_output_tensor)
             concat_aspect_tensor = torch.cat([transformed_aspect_embedding for i in range(transformed_rnn_output.size(1))], dim=1)
@@ -65,71 +60,71 @@ class ATAE_LSTM(nn.Module):
 
 
 
-        def custom_embedding_layer(self, inputs: Union[List[Sentence], Sentence]) -> torch.Tensor:
+    def custom_embedding_layer(self, inputs: Union[List[Sentence], Sentence]) -> torch.Tensor:
 
-            if type(inputs) == Sentence:
-                inputs = [inputs]
+        if type(inputs) == Sentence:
+            inputs = [inputs]
 
-            self.stackedembeddings.embed(inputs)
-            inputs.sort(lambda x: len(x), reverse = True)
-            max_length = len(inputs[0])
-            lengths: List[int] = []
-            batch_tensor_list : List[torch.Tensor] = []
-            for sentence in inputs:
-                sentence_tensor = [token.get_embedding().unsqueeze(dim=0) for token in sentence.tokens]
-                for i in range(max_length-len(sentence)):
-                    sentence_tensor.append(torch.zeros(token.get_embedding().size(0)).unsqueeze(0))
-                    sentence_tensor = torch.cat(sentence_tensor, dim=0)
-                batch_tensor_list.append(sentence_tensor.unsqueeze(0))
-                lengths.append(len(sentence))
-            batch_tensor: torch.Tensor = torch.cat(batch_tensor_list, dim=0)
+        self.stackedembeddings.embed(inputs)
+        inputs.sort(lambda x: len(x), reverse = True)
+        max_length = len(inputs[0])
+        lengths: List[int] = []
+        batch_tensor_list : List[torch.Tensor] = []
+        for sentence in inputs:
+            sentence_tensor = [token.get_embedding().unsqueeze(dim=0) for token in sentence.tokens]
+            for i in range(max_length-len(sentence)):
+                sentence_tensor.append(torch.zeros(token.get_embedding().size(0)).unsqueeze(0))
+                sentence_tensor = torch.cat(sentence_tensor, dim=0)
+            batch_tensor_list.append(sentence_tensor.unsqueeze(0))
+            lengths.append(len(sentence))
+        batch_tensor: torch.Tensor = torch.cat(batch_tensor_list, dim=0)
 
-            return batch_tensor, torch.tensor(lengths)
-
-
-
-        def aspect_embedding_layer(self, targets:Tuple(List[List[int]], List[Sentence]),  vocab: Dict(),
-                                   trainable: bool = True, affine: bool = False, embedding_dim: int = 300) -> torch.Tensor:
-
-            self.wordembeddings.embed(targets[1])
-            embed = nn.Embedding(len(vocab), embedding_dim, padding_idx = 0)
-            weights = torch.empty(len(vocab), embedding_dim)
-            for i, sentence in targets[1]:
-                for j, token in enumerate(sentence.tokens):
-                    index = targets[0][i][j]
-                    weights[i] = token.get_embedding()
-
-            embed.from_pretrained(weights = weights, freeze = not trainable)
-            inputs = torch.LongTensor(targets[0])
-            embedding = embed(inputs)
-            if affine:
-                transformed_aspect_embeddings = self.aspect_projecting_layer(embedding)
-            else:
-                transformed_aspect_embeddings = embedding
-
-            return transformed_aspect_embeddings
+        return batch_tensor, torch.tensor(lengths)
 
 
-        def affine_transformation_final(sent_repr: torch.tensor, final_hidden_state: torch.Tensor):
 
-            projected_final_hidden = self.projected_hidden_size(final_hidden_state.size(-1), final_hidden_state.size(-1))(final_hidden_state)
-            projected_sent_repr= self.project_hidden_state(sent_repr.size(-1), sent_repr.size(-1))(sent_repr)
+    def aspect_embedding_layer(self, targets:Tuple(List[List[int]], List[Sentence]),  vocab: Dict(),
+                               trainable: bool = True, affine: bool = False, embedding_dim: int = 300) -> torch.Tensor:
 
-            return self.project_hidden_state(F.tanh(projected_final_hidden + projected_sent_repr).size(-1), self.num_classes)
+        self.wordembeddings.embed(targets[1])
+        embed = nn.Embedding(len(vocab), embedding_dim, padding_idx = 0)
+        weights = torch.empty(len(vocab), embedding_dim)
+        for i, sentence in targets[1]:
+            for j, token in enumerate(sentence.tokens):
+                index = targets[0][i][j]
+                weights[i] = token.get_embedding()
 
-        def forward(self, input_sentences: List[Sentence], target_words: List[List[int]], vocab: Dict()):
+        embed.from_pretrained(weights = weights, freeze = not trainable)
+        inputs = torch.LongTensor(targets[0])
+        embedding = embed(inputs)
+        if affine:
+            transformed_aspect_embeddings = self.aspect_projecting_layer(embedding)
+        else:
+            transformed_aspect_embeddings = embedding
 
-            
-            nontrainable_embeddings, __lengths__ = custom_embedding_layer(inputs = input_sentences)
-            trainable_embeddings = aspect_embedding_layer(targets = Tuple(target_words, input_sentences),
-                                                          vocab = vocab)(target_words)
-            combined_embeddings = torch.cat([nontrainable_embeddings, trainable_embeddings], dim = 2)
-            packed_embeddings = pack_padded_sequence(combined_embeddings, lengths =__lengths__, batch_first=True)
-            recurrent_output = self.rnn(packed_embeddings)
-            padded_rnn_embedding, __ = pad_packed_sequence(recurrent_output)
-            weird_tensor = weird_operation(rnn_output_tensor = padded_rnn_embedding, aspect_embedding_tensor = trainable_embeddings)
-            final_hidden_state_repr = torch.cat([recurrent_output[:, -1, :], recurrent_output[:, 0, :]], dim=2)
-            sent_repr = self.attention.forward(attention_candidates = weird_tensor, attention_size = weird_tensor.size(-1))
-            final_logits = affine_transformation_final(sent_repr = sent_repr, final_hidden_state = final_hidden_state_repr)
+        return transformed_aspect_embeddings
 
-            return final_logits
+
+    def affine_transformation_final(sent_repr: torch.tensor, final_hidden_state: torch.Tensor):
+
+        projected_final_hidden = self.projected_hidden_size(final_hidden_state.size(-1), final_hidden_state.size(-1))(final_hidden_state)
+        projected_sent_repr= self.project_hidden_state(sent_repr.size(-1), sent_repr.size(-1))(sent_repr)
+
+        return self.project_hidden_state(F.tanh(projected_final_hidden + projected_sent_repr).size(-1), self.num_classes)
+
+    def forward(self, input_sentences: List[Sentence], target_words: List[List[int]], vocab: Dict()):
+
+        
+        nontrainable_embeddings, __lengths__ = custom_embedding_layer(inputs = input_sentences)
+        trainable_embeddings = aspect_embedding_layer(targets = Tuple(target_words, input_sentences),
+                                                      vocab = vocab)(target_words)
+        combined_embeddings = torch.cat([nontrainable_embeddings, trainable_embeddings], dim = 2)
+        packed_embeddings = pack_padded_sequence(combined_embeddings, lengths =__lengths__, batch_first=True)
+        recurrent_output = self.rnn(packed_embeddings)
+        padded_rnn_embedding, __ = pad_packed_sequence(recurrent_output)
+        weird_tensor = weird_operation(rnn_output_tensor = padded_rnn_embedding, aspect_embedding_tensor = trainable_embeddings)
+        final_hidden_state_repr = torch.cat([recurrent_output[:, -1, :], recurrent_output[:, 0, :]], dim=2)
+        sent_repr = self.attention.forward(attention_candidates = weird_tensor, attention_size = weird_tensor.size(-1))
+        final_logits = affine_transformation_final(sent_repr = sent_repr, final_hidden_state = final_hidden_state_repr)
+
+        return final_logits
