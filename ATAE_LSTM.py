@@ -14,12 +14,17 @@ class ATAE_LSTM(nn.Module):
     This class implements the ATAE_LSTM model
     '''
 
-    def __init__(self, embedding_dimension: int, attention_size: int, vocab_size: int,
-                 num_classes: int = 2, bidirectional: bool = False, rnn_layers: int = 1,
-                 hidden_size: int = 128, rnn_type: str = 'GRU'):
+    def __init__(self, num_classes: int = 2, bidirectional: bool = False, rnn_layers: int = 1,
+                 hidden_size: int = 256, rnn_type: str = 'GRU'):
 
         super(ATAE_LSTM, self).__init__()
-        self.embedding_dimension: int = embedding_dimension
+
+        self.stackedembeddings: StackedEmbeddings = StackedEmbeddings([FlairEmbeddings('news-forward'), 
+                                                                       FlairEmbeddings('news-backward')])
+        self.wordembeddings: StackedEmbeddings = StackedEmbeddings([WordEmbeddings('glove')])
+
+        
+        self.embedding_dimension: int = self.stackedembeddings.get_embedding_length() + self.wordembeddings.get_embedding_length()
         self.bidirectional: bool = bidirectional
         self.rnn_layers: bool = rnn_layers
         self.rnn_type :str = rnn_type
@@ -35,12 +40,12 @@ class ATAE_LSTM(nn.Module):
         self.projected_hidden_size = self.projected_hidden_size
 
         if self.rnn_type == 'GRU':
-            self.rnn = torch.nn.GRU(embedding_dimension, self.hidden_size, bidirectional = self.bidirectional, num_layers = self.rnn_layers)
+            self.rnn = torch.nn.GRU(self.embedding_dimension, self.hidden_size, bidirectional = self.bidirectional, num_layers = self.rnn_layers)
         else:
-            self.rnn = torch.nn.LSTM(embedding_dimension, self.hidden_size, bidirectional = self.bidirectional, num_layers = self.rnn_layers)
+            self.rnn = torch.nn.LSTM(self.embedding_dimension, self.hidden_size, bidirectional = self.bidirectional, num_layers = self.rnn_layers)
 
         self.project_hidden_state = nn.Linear(self.unprojected_hidden_size, self.projected_hidden_size )
-        self. attention = Attention(attention_size = attention_size)
+        self. attention = Attention()
         self.aspect_projecting_layer = nn.Linear(self.aspect_size, self.new_aspect_size)
 
         self.stackedembeddings: StackedEmbeddings = StackedEmbeddings([FlairEmbeddings('news-forward'), 
@@ -84,8 +89,8 @@ class ATAE_LSTM(nn.Module):
                                    trainable: bool = True, affine: bool = False, embedding_dim: int = 300) -> torch.Tensor:
 
             self.wordembeddings.embed(targets[1])
-            embed = nn.Embedding(self.vocab_size, embedding_dim, padding_idx = 0)
-            weights = torch.empty(self.vocab_size, embedding_dim)
+            embed = nn.Embedding(len(vocab), embedding_dim, padding_idx = 0)
+            weights = torch.empty(len(vocab), embedding_dim)
             for i, sentence in targets[1]:
                 for j, token in enumerate(sentence.tokens):
                     index = targets[0][i][j]
@@ -121,7 +126,7 @@ class ATAE_LSTM(nn.Module):
             padded_rnn_embedding, __ = pad_packed_sequence(recurrent_output)
             weird_tensor = weird_operation(rnn_output_tensor = padded_rnn_embedding, aspect_embedding_tensor = trainable_embeddings)
             final_hidden_state_repr = torch.cat([recurrent_output[:, -1, :], recurrent_output[:, 0, :]], dim=2)
-            sent_repr = self.attention.forward(attention_candidates = weird_tensor)
+            sent_repr = self.attention.forward(attention_candidates = weird_tensor, attention_size = weird_tensor.size(-1))
             final_logits = affine_transformation_final(sent_repr = sent_repr, final_hidden_state = final_hidden_state_repr)
 
             return final_logits
