@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F 
 
-class Attention(flair.nn.Model):
+class Attention(nn.Module):
 
     '''
     This class implements soft-attention
