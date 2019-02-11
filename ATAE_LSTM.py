@@ -107,7 +107,7 @@ class ATAE_LSTM(nn.Module):
 
     def affine_transformation_final(sent_repr: torch.tensor, final_hidden_state: torch.Tensor):
 
-        projected_final_hidden = self.projected_hidden_size(final_hidden_state.size(-1), final_hidden_state.size(-1))(final_hidden_state)
+        projected_final_hidden = self.projected_hidden_size(final_hidden_state.size(-1), sent_repr.size(-1))(final_hidden_state)
         projected_sent_repr= self.project_hidden_state(sent_repr.size(-1), sent_repr.size(-1))(sent_repr)
 
         return self.project_hidden_state(F.tanh(projected_final_hidden + projected_sent_repr).size(-1), self.num_classes)
