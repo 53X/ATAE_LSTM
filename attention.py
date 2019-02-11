@@ -14,7 +14,7 @@ class Attention(nn.Module):
         self.batch_first: bool = batch_first
         
 
-	def forward(self, , attention_size: int, attention_candidates: torch.Tensor, weighted_sum_candidates: torch.Tensor = None) -> torch.Tensor:
+    def forward(self, attention_size: int, attention_candidates: torch.Tensor, weighted_sum_candidates: torch.Tensor = None) -> torch.Tensor:
 
         self.attention_tensor: torch.Tensor = torch.empty(attention_candidates.size(0), attention_size, 1) 
         torch.nn.init.ones_(self.attention_tensor)
