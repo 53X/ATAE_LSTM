@@ -15,7 +15,7 @@ class ATAE_LSTM(nn.Module):
     This class implements the ATAE_LSTM model
     '''
 
-    def __init__(self, project_hidden: bool = False, num_classes: int = 2, bidirectional: bool = False, rnn_layers: int = 1,
+    def __init__(self, num_classes: int = 2, bidirectional: bool = False, rnn_layers: int = 1,
                  hidden_size: int = 256, rnn_type: str = 'GRU'):
 
         super(ATAE_LSTM, self).__init__()
@@ -30,31 +30,30 @@ class ATAE_LSTM(nn.Module):
         self.num_classes: int = num_classes
         self.hidden_size: int = hidden_size
         
-        if self.bidirectional:
-            self.unprojected_hidden_size = self.hidden_size * 2
-        else:
-            self.unprojected_hidden_size = self.hidden_size
         
-        if project_hidden is False:
-            self.projected_hidden_size = self.unprojected_hidden_size
-            self.new_aspect_size = self.wordembeddings.embedding_length 
-        else:
-            raise ValueError('This functionality will be included')    
-
         if self.rnn_type == 'GRU':
             self.rnn = torch.nn.GRU(self.embedding_dimension, self.hidden_size, bidirectional = self.bidirectional, num_layers = self.rnn_layers)
         else:
             self.rnn = torch.nn.LSTM(self.embedding_dimension, self.hidden_size, bidirectional = self.bidirectional, num_layers = self.rnn_layers)
 
-        self.project_hidden_state = nn.Linear(self.unprojected_hidden_size, self.projected_hidden_size )
-        self. attention = Attention()
-        self.aspect_projecting_layer = nn.Linear(self.wordembeddings.embedding_length, self.new_aspect_size)
-
+        self.attention = Attention()
  
     def weird_operation(self, rnn_output_tensor: torch.tensor, aspect_embedding_tensor: torch.tensor) -> torch.tensor:
 
-            transformed_rnn_output = self.project_hidden_state(rnn_output_tensor)
+            transformed_rnn_output = self.myLinear(rnn_output_tensor)
             return F.relu(torch.cat([transformed_rnn_output, aspect_embedding_tensor], dim = 2))
+
+    def myLinear(self, input_tensor: torch.tensor, output_dim: int = None, keep=True) -> torch.tensor:
+        
+        if keep :
+            output_dim = input_tensor.size(-1)
+        elif output_dim is None:
+            raise Exception('Enter the output dimension')
+        
+        self.Linear = nn.Linear(input_tensor.size(-1), output_dim)
+        torch.nn.init.xavier_uniform(self.Linear.weight)
+        return self.Linear(input_tensor)
+
 
 
 
@@ -98,20 +97,19 @@ class ATAE_LSTM(nn.Module):
         inputs = torch.tensor(targets[0])
         embedding = embed(inputs)
         if affine:
-            transformed_aspect_embeddings = self.aspect_projecting_layer(embedding)
+            transformed_aspect_embeddings = self.myLinear(input_tensor=embedding, keepdim=True)
         else:
             transformed_aspect_embeddings = embedding
-
         return transformed_aspect_embeddings
 
 
     def affine_transformation_final(self, sent_repr: torch.tensor, final_hidden_state: torch.tensor):
 
-        projected_final_hidden = self.projected_hidden_size(final_hidden_state.size(-1), sent_repr.size(-1))(final_hidden_state)
-        projected_sent_repr= self.project_hidden_state(sent_repr.size(-1), sent_repr.size(-1))(sent_repr)
+        projected_final_hidden = self.myLinear(final_hidden_state, output_dim=sent_repr.size(-1), keep=False)
+        projected_sent_repr= self.myLinear(sent_repr, keep=True)
+        print (self.myLinear(input_tensor=torch.tanh(projected_sent_repr + projected_final_hidden), output_dim=self.num_classes, keep=False))
 
-        return self.project_hidden_state(F.tanh(projected_final_hidden + projected_sent_repr).size(-1), self.num_classes)
-
+    
     def forward(self, input_sentences: List[Sentence], target_words: List[List[int]], vocab: dict()):
 
         
@@ -128,8 +126,6 @@ class ATAE_LSTM(nn.Module):
         final_hidden_state_repr = torch.cat([padded_rnn_embedding[:, -1, :], padded_rnn_embedding[:, 0, :]], dim=-1).unsqueeze(dim=1)
         sent_repr = self.attention.forward(attention_candidates = weird_tensor, attention_size = weird_tensor.size(-1))
 
-        print(sent_repr.size())
-        print(final_hidden_state_repr.size())
         final_logits = self.affine_transformation_final(sent_repr = sent_repr, final_hidden_state = final_hidden_state_repr)
 
         return final_logits
