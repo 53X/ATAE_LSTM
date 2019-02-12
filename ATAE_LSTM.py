@@ -124,7 +124,8 @@ class ATAE_LSTM(nn.Module):
         
         weird_tensor = self.weird_operation(rnn_output_tensor = padded_rnn_embedding, aspect_embedding_tensor = trainable_embeddings)
         final_hidden_state_repr = torch.cat([padded_rnn_embedding[:, -1, :], padded_rnn_embedding[:, 0, :]], dim=-1).unsqueeze(dim=1)
-        sent_repr = self.attention.forward(attention_candidates = weird_tensor, attention_size = weird_tensor.size(-1))
+        sent_repr = self.attention.forward(attention_candidates = weird_tensor, weighted_sum_candidates = padded_rnn_embedding, 
+                                            attention_size = weird_tensor.size(-1))
 
         final_logits = self.affine_transformation_final(sent_repr = sent_repr, final_hidden_state = final_hidden_state_repr)
 
