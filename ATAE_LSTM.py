@@ -54,13 +54,7 @@ class ATAE_LSTM(nn.Module):
     def weird_operation(self, rnn_output_tensor: torch.tensor, aspect_embedding_tensor: torch.tensor) -> torch.tensor:
 
             transformed_rnn_output = self.project_hidden_state(rnn_output_tensor)
-
-            print(transformed_rnn_output.size())
-
-            #concat_aspect_tensor = torch.cat([transformed_rnn_output for i in range(transformed_rnn_output.size(1))], dim=1)
-
-            print(concat_aspect_tensor.size())
-            return F.relu(torch.cat([transformed_rnn_output, concat_aspect_tensor], dim = 2))
+            return F.relu(torch.cat([transformed_rnn_output, aspect_embedding_tensor], dim = 2))
 
 
 
@@ -124,20 +118,18 @@ class ATAE_LSTM(nn.Module):
         nontrainable_embeddings, __lengths__ = self.custom_embedding_layer(inputs = input_sentences)
         trainable_embeddings = self.aspect_embedding_layer(targets = tuple([target_words, input_sentences]), vocab = vocab)
         trainable_embeddings = torch.cat([trainable_embeddings for i in range(nontrainable_embeddings.size(1))], dim=1)
-
-
         combined_embeddings = torch.cat([nontrainable_embeddings, trainable_embeddings], dim = 2)
+        
         packed_embeddings = pack_padded_sequence(combined_embeddings, lengths =__lengths__, batch_first=True)
         recurrent_output, last_states = self.rnn(packed_embeddings)
         padded_rnn_embedding, __ = pad_packed_sequence(recurrent_output, batch_first=True)
+        
         weird_tensor = self.weird_operation(rnn_output_tensor = padded_rnn_embedding, aspect_embedding_tensor = trainable_embeddings)
-        
-        print(padded_rnn_embedding.size())
-
-        final_hidden_state_repr = torch.cat([padded_rnn_embedding[:, -1, :], padded_rnn_embedding[:, 0, :]], dim=2)
-        
-
+        final_hidden_state_repr = torch.cat([padded_rnn_embedding[:, -1, :], padded_rnn_embedding[:, 0, :]], dim=-1).unsqueeze(dim=1)
         sent_repr = self.attention.forward(attention_candidates = weird_tensor, attention_size = weird_tensor.size(-1))
+
+        print(sent_repr.size())
+        print(final_hidden_state_repr.size())
         final_logits = self.affine_transformation_final(sent_repr = sent_repr, final_hidden_state = final_hidden_state_repr)
 
         return final_logits
